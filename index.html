@@ -94,6 +94,24 @@ label.chk input{width:auto}
     </div>
 
     <form class="panel kind-goal" id="f" autocomplete="off">
+      <div class="row" style="justify-content:space-between">
+        <div style="min-width:0"><div class="small">Aktuelles Spiel</div><strong id="gameLabel" style="font-size:17px">–</strong></div>
+        <button type="button" class="btn" id="ngOpen" style="background:var(--fg);color:var(--bg)">Neues Spiel</button>
+      </div>
+      <div id="ngPanel" hidden style="border:2px solid var(--accent);border-radius:12px;padding:14px;display:flex;flex-direction:column;gap:10px">
+        <strong>Neues Spiel</strong>
+        <fieldset>
+          <label>Liga<select id="ngLeague"><option>ÖEL Ost</option><option>ÖEL West</option><option>Regionalliga Ost (RLO)</option><option>Sonstige</option></select></label>
+          <label>WEV spielt<select id="ngWhere"><option value="home">Heimspiel</option><option value="away">Auswärtsspiel</option></select></label>
+          <label class="full">Gegner<select id="ngOpp"></select></label>
+          <label class="full" id="ngOppNameL" hidden>Name des Gegners<input id="ngOppName" value=""></label>
+        </fieldset>
+        <span class="small">Spielstand, Spielzeit und Torschützen werden auf 0 gesetzt. Kader und Lineup bleiben erhalten.</span>
+        <div class="row">
+          <button type="button" class="btn" id="ngGo">Neues Spiel starten</button>
+          <button type="button" class="btn" id="ngCancel" style="background:var(--chip);color:var(--fg)">Abbrechen</button>
+        </div>
+      </div>
       <div class="kinds" role="group" aria-label="Vorlage">
         <button type="button" id="kGoal" data-k="goal" aria-pressed="true">Tor</button>
         <button type="button" id="kPen" data-k="pen" aria-pressed="false">Strafe</button>
@@ -112,10 +130,10 @@ label.chk input{width:auto}
         <label>Eigenes Logo Gast<input id="aLogo" type="file" accept="image/*"></label>
         <span class="small" style="grid-column:1/-1">Ein eigenes Logo merkt sich die Seite auf diesem Handy, beim nächsten Mal ist es schon da.</span>
         <label>Tore Heim<input id="hScore" type="number" min="0" value="0" inputmode="numeric"></label>
-        <label>Tore Gast<input id="aScore" type="number" min="0" value="4" inputmode="numeric"></label>
+        <label>Tore Gast<input id="aScore" type="number" min="0" value="0" inputmode="numeric"></label>
         <label>Spielabschnitt<select id="period">
           <option>1. DRITTEL</option><option selected>2. DRITTEL</option><option>3. DRITTEL</option><option>OVERTIME</option><option>PENALTYSCHIESSEN</option><option>ENDSTAND</option></select></label>
-        <label>Spielzeit<input id="clock" value="34:12"></label>
+        <label>Spielzeit (optional)<input id="clock" value="" placeholder="z. B. 12:34"></label>
       </fieldset>
 
       <fieldset>
@@ -153,7 +171,7 @@ label.chk input{width:auto}
       <fieldset class="only k-score">
         <legend>Torschützen (Leiste unten)</legend>
         <label>Logo der Mannschaft<select id="scSide"><option value="away">Gast</option><option value="home">Heim</option></select></label>
-        <label class="full">Torschützen (kommen automatisch dazu, wenn ein Tor-Video erstellt wird)<input id="scorers" value="#68 Necesany, #38 Fichtinger R., #61 Aschauer"></label>
+        <label class="full">Torschützen (kommen automatisch dazu, wenn ein Tor-Video erstellt wird)<input id="scorers" value=""></label>
       </fieldset>
 
       <fieldset class="only k-lineup">
@@ -693,7 +711,7 @@ $('rec').onclick = async () => {
     lastBlob = new Blob(chunks, { type:mime || 'video/webm' });
     if (kind === 'goal') { // Torschütze für die Spielstand-Leiste merken
       const d = data(), e = (d.no ? '#' + d.no + ' ' : '') + (d.pname || '');
-      if (e.trim()) { $('scSide').value = d.side; $('scorers').value = [v('scorers'), e.trim()].filter(Boolean).join(', '); }
+      if (e.trim()) { $('scSide').value = d.side; $('scorers').value = [v('scorers'), e.trim()].filter(Boolean).join(', '); saveGame(); }
     }
     $('out').src = URL.createObjectURL(lastBlob); $('result').hidden = false;
     $('fmt').textContent = `${lastExt.toUpperCase()} · ${(lastBlob.size / 1048576).toFixed(1)} MB · 1080 × 1920 · ${dur.toFixed(1)} s${a ? ' · mit Ton' : ''}` + (lastExt === 'webm' ? ' · Instagram nimmt WebM nicht immer an, MP4 ist sicherer.' : '');
@@ -704,8 +722,46 @@ $('rec').onclick = async () => {
   setTimeout(() => rec.stop(), dur * 1000 + 250);
 };
 
-refreshTeams();
-$('player').value = '68'; $('as1').value = '38'; $('as2').value = '61';
+/* ---------- Neues Spiel + aktueller Spielstand (bleibt auf dem Gerät gespeichert) ---------- */
+const GAME_IDS = ['hSel', 'aSel', 'hName', 'aName', 'hScore', 'aScore', 'period', 'clock', 'scorers', 'scSide', 'side', 'luSide'];
+function saveGame(){ const o = {}; GAME_IDS.forEach(id => o[id] = $(id).value); lsSet('rinkside-social-spiel', JSON.stringify(o)); showGame(); }
+function showGame(){ $('gameLabel').textContent = `${v('hName') || 'Heim'}  ${+$('hScore').value || 0} : ${+$('aScore').value || 0}  ${v('aName') || 'Gast'}`; }
+function loadGame(){
+  let o = null; try { o = JSON.parse(lsGet('rinkside-social-spiel') || 'null'); } catch (e) {}
+  if (!o) return false;
+  GAME_IDS.forEach(id => { if (o[id] != null) $(id).value = o[id]; });
+  return true;
+}
+GAME_IDS.forEach(id => $(id).addEventListener('change', saveGame));
+['hScore', 'aScore', 'hName', 'aName'].forEach(id => $(id).addEventListener('input', showGame));
+function fillOpp(){
+  const lg = $('ngLeague').value, list = LIB_DEFAULT.filter(e => e[1] === lg && e[2] !== 'WEV');
+  $('ngOpp').innerHTML = list.map(e => `<option value="${e[0]}">${e[3]}</option>`).join('') + '<option value="">– anderer Gegner –</option>';
+  $('ngOppNameL').hidden = !!$('ngOpp').value;
+}
+$('ngLeague').onchange = fillOpp;
+$('ngOpp').onchange = () => { $('ngOppNameL').hidden = !!$('ngOpp').value; };
+$('ngOpen').onclick = () => { fillOpp(); $('ngPanel').hidden = false; $('ngPanel').scrollIntoView({ behavior:'smooth', block:'nearest' }); };
+$('ngCancel').onclick = () => { $('ngPanel').hidden = true; };
+$('ngGo').onclick = () => {
+  const lg = $('ngLeague').value, wevId = lg.startsWith('Regionalliga') ? 'r0' : 't0';
+  const oppId = $('ngOpp').value, opp = LIB_DEFAULT.find(e => e[0] === oppId);
+  const oppName = opp ? opp[2] : (v('ngOppName') || 'Gast');
+  const wevSide = $('ngWhere').value === 'home' ? 'h' : 'a', oppSide = wevSide === 'h' ? 'a' : 'h';
+  $(wevSide + 'Sel').value = wevId; $(wevSide + 'Name').value = 'WEV';
+  $(oppSide + 'Sel').value = oppId; $(oppSide + 'Name').value = oppName;
+  ['hLogo', 'aLogo'].forEach(id => { img[id] = null; $(id).value = ''; });
+  $('hScore').value = 0; $('aScore').value = 0; $('period').value = '1. DRITTEL'; $('clock').value = ''; $('scorers').value = '';
+  const ws = wevSide === 'h' ? 'home' : 'away';
+  $('side').value = ws; $('scSide').value = ws; $('luSide').value = ws;
+  refreshTeams(); saveGame();
+  $('ngPanel').hidden = true;
+  $('kLineup').click();
+  say(`Neues Spiel: ${v('hName')} gegen ${v('aName')}. Jetzt das Lineup prüfen.`);
+};
+
+if (loadGame()) refreshTeams(); else { refreshTeams(); $('player').value = '68'; $('as1').value = '38'; $('as2').value = '61'; fillOpp(); $('ngPanel').hidden = false; }
+showGame();
 let downloads = null;
 (async () => { try { downloads = await window.claude?.use?.('downloads'); } catch (e) {} })();
 $('save').onclick = async () => {
