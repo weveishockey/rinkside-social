@@ -1,5 +1,5 @@
-// Rinkside Social – Offline-Speicher. Version: 20261114-2116
-const CACHE = 'rinkside-social-20261114-2116';
+// Rinkside Social – Offline-Speicher. Version: 20261114-2123
+const CACHE = 'rinkside-social-20261114-2123';
 const FILES = ['./', 'index.html', 'manifest.webmanifest', 'icon-192.png', 'icon-512.png', 'icon-180.png'];
 self.addEventListener('install', e => { e.waitUntil(caches.open(CACHE).then(c => c.addAll(FILES)).then(() => self.skipWaiting())); });
 self.addEventListener('activate', e => { e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k => k !== CACHE).map(k => caches.delete(k)))).then(() => self.clients.claim())); });

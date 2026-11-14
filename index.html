@@ -475,6 +475,29 @@ function drawLogo(team, cx, cy, size){
   fit(initials(team.name), size * .66, size * .36, HEAD, 900, true); ctx.fillText(initials(team.name), cx, cy + size * .02);
   ctx.restore();
 }
+/* Spielerfotos: liegen in der Web-App im Ordner fotos/<team>/<nummer>.png oder .jpg
+   (z. B. fotos/wev/38.png). Gibt es kein Foto, wird wie bisher das Teamlogo gezeigt. */
+const PHOTO_DIR = { t0:'wev', r0:'wev' };
+const photoCache = {};
+function playerPhoto(side, no){
+  if (!no || !/^https?:$/.test(location.protocol)) return null;
+  const k = teamKey(side), dir = PHOTO_DIR[k] || k.replace(/[^a-z0-9]+/gi, '-'), id = dir + '/' + no;
+  let c = photoCache[id];
+  if (!c) {
+    c = photoCache[id] = { img:null };
+    const exts = ['png', 'jpg', 'jpeg', 'webp'];
+    const tryNext = i => { if (i >= exts.length) return; const im = new Image();
+      im.onload = () => { c.img = im; }; im.onerror = () => tryNext(i + 1); im.src = 'fotos/' + id + '.' + exts[i]; };
+    tryNext(0);
+  }
+  return c.img;
+}
+function drawPhoto(im, x, y, w, h, round){ // füllt den Bereich (Gesicht eher oben), rund oder eckig
+  const r = Math.max(w / im.width, h / im.height), iw = im.width * r, ih = im.height * r;
+  ctx.save(); ctx.beginPath();
+  if (round) ctx.arc(x + w/2, y + h/2, Math.min(w, h)/2, 0, Math.PI * 2); else ctx.rect(x, y, w, h);
+  ctx.clip(); ctx.drawImage(im, x + (w - iw)/2, y + (h - ih) * .2, iw, ih); ctx.restore();
+}
 function cross(cx, cy, s, p = 1){ // gelbes X, Striche werden nacheinander gezogen
   ctx.save(); ctx.strokeStyle = Y; ctx.lineWidth = s * .12;
   const p1 = clamp(p * 2), p2 = clamp(p * 2 - 1);
@@ -550,7 +573,11 @@ function drawGoal(t){
   const a = eOut(prog(t, .7, 1.2));
   ctx.save(); ctx.translate((1 - a) * (d.side === 'away' ? W : -W), 0);
   panel(110, 780, 860, 720);
-  drawLogo(team, W/2, 900, 170);
+  const ph = playerPhoto(d.side, d.no);
+  if (ph) { const r = 125; drawPhoto(ph, W/2 - r, 905 - r, 2*r, 2*r, true);
+    ctx.save(); ctx.beginPath(); ctx.arc(W/2, 905, r, 0, Math.PI * 2); ctx.lineWidth = 10; ctx.strokeStyle = Y; ctx.stroke(); ctx.restore();
+    drawLogo(team, W/2 + 100, 990, 70); }
+  else drawLogo(team, W/2, 900, 170);
   ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic'; ctx.fillStyle = Y;
   const who = (d.no ? '#' + d.no + '  ' : '') + (d.pname || team.name).toUpperCase();
   fit(who, 780, 120, COND, 700, false, 4); ctx.fillText(who, W/2, 1110);
@@ -576,7 +603,8 @@ function drawPen(t){
   ctx.save(); ctx.translate(W/2, jy + jh/2); ctx.scale(p, p); ctx.translate(-W/2, -(jy + jh/2));
   panel(jx, jy, jw, jh, .8);
   ctx.save(); ctx.beginPath(); ctx.rect(jx, jy, jw, jh); ctx.clip();
-  drawLogo(team, W/2, jy + jh/2, 330);
+  const ph = playerPhoto(d.side, d.no);
+  if (ph) drawPhoto(ph, jx, jy, jw, jh, false); else drawLogo(team, W/2, jy + jh/2, 330);
   const b = eBounce(prog(t, .9, 1.7)); ctx.translate(0, (1 - b) * -jh);
   for (let i = 0; i < 7; i++) {
     const bx = jx + 40 + i * ((jw - 80) / 6) - 13, g = ctx.createLinearGradient(bx, 0, bx + 26, 0);
