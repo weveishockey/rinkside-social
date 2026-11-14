@@ -82,12 +82,15 @@ summary{cursor:pointer;font-weight:700}
 .kind-goal .k-goal,.kind-pen .k-pen,.kind-score .k-score,.kind-lineup .k-lineup,.kind-text .k-text{display:grid}
 label.chk{flex-direction:row;align-items:center;gap:8px;color:var(--fg);font-size:14px}
 label.chk input{width:auto}
+.hrow{display:flex;justify-content:space-between;align-items:center;gap:12px}
+.info{flex:none;width:40px;height:40px;border-radius:50%;background:var(--accent);color:var(--accent-fg);display:grid;place-items:center;
+  font:italic 900 22px Georgia,serif;text-decoration:none}
 #bgVid{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none}
 </style>
 
 <div class="wrap">
   <header>
-    <h1>Rinkside <span>Social</span></h1>
+    <div class="hrow"><h1>Rinkside <span>Social</span></h1><a id="infoBtn" class="info" href="anleitung.html" title="Anleitung und Infos" aria-label="Anleitung und Infos">i</a></div>
     <p>Im Look der WEV-Stories: Tor, Strafe, Drittel- oder Endstand und Lineup oder freier Text als kurzes Hochformat-Video (1080 × 1920) für Instagram Stories, Reels und TikTok. Hintergrund als Foto oder Video, mit Originalton oder Musik aus Instagram.</p>
   </header>
 
@@ -438,6 +441,7 @@ function refreshTeams(){ fillPlayers(); buildLineupGrid(); }
 ['hName', 'aName'].forEach(id => $(id).addEventListener('change', refreshTeams));
 
 const v = id => $(id).value.trim();
+if (!/^https?:$/.test(location.protocol) || !/github\.io$|localhost/.test(location.hostname)) { const ib = $('infoBtn'); ib.href = 'https://weveishockey.github.io/rinkside-social/anleitung.html'; ib.target = '_blank'; ib.rel = 'noopener'; }
 function data(){
   const sd = $('side').value, pv = $('player').value, pl = pv && pv !== '__other' ? findP(sd, pv) : null;
   const asn = [...new Set(['as1', 'as2'].map(id => $(id).value))].filter(n => n && n !== pv).map(no => { const p = findP(sd, no); return '#' + no + (p ? ' ' + p.short : ''); });
