@@ -157,6 +157,7 @@ label.chk input{width:auto}
 
       <fieldset class="only k-goal">
         <legend>Assists</legend>
+        <span class="small full" style="grid-column:1/-1">Den Spielstand vor dem Tor stehen lassen: Das Tor wird automatisch +1 gezählt, sobald das Video erstellt ist. Ein zweites Video vom selben Tor zählt nicht noch einmal.</span>
         <label>1. Assist<select id="as1"></select></label>
         <label>2. Assist<select id="as2"></select></label>
       </fieldset>
@@ -228,6 +229,7 @@ const COND = '"Oswald","Arial Narrow",Impact,sans-serif';
 let kind = 'goal';
 const img = { hLogo:null, aLogo:null, bgPhoto:null };
 const snd = { goal:null, pen:null, other:null };
+let goalPending = true; // Tor noch nicht gezählt: Vorschau zeigt schon +1, gezählt wird nach dem Video
 const DUR = { goal:7, pen:6.5, score:6.5, lineup:9, text:6 };
 const vid = $('bgVid'); let vidOn = false;
 function clipDur(){
@@ -238,7 +240,7 @@ function clipDur(){
 
 /* ---------- Eingaben ---------- */
 document.querySelectorAll('.kinds button').forEach(b => b.onclick = () => {
-  kind = b.dataset.k;
+  kind = b.dataset.k; if (kind === 'goal') goalPending = true;
   document.querySelectorAll('.kinds button').forEach(x => x.setAttribute('aria-pressed', x === b));
   $('f').className = 'panel kind-' + kind;
   t0 = performance.now();
@@ -386,7 +388,9 @@ $('reasonSel').innerHTML = '<option value="">– ohne Grund –</option>' + REAS
 $('reasonSel').value = 'Haken';
 $('reasonSel').onchange = () => { $('reasonOther').hidden = $('reasonSel').value !== '__other'; };
 $('player').onchange = () => { document.querySelectorAll('.pOther').forEach(x => x.hidden = $('player').value !== '__other'); };
-$('side').onchange = fillPlayers;
+$('side').onchange = () => { goalPending = true; fillPlayers(); };
+['player', 'as1', 'as2'].forEach(id => $(id).addEventListener('change', () => { goalPending = true; }));
+['hScore', 'aScore'].forEach(id => $(id).addEventListener('change', () => { goalPending = true; }));
 
 /* Lineup-Auswahl */
 const SLOTS = [1, 2, 3, 4].map(l => ({ l, f:[1, 2, 3, 4].map(i => `L${l}F${i}`), d:[`L${l}D1`, `L${l}D2`] }));
@@ -425,11 +429,11 @@ function refreshTeams(){ fillPlayers(); buildLineupGrid(); }
 const v = id => $(id).value.trim();
 function data(){
   const sd = $('side').value, pv = $('player').value, pl = pv && pv !== '__other' ? findP(sd, pv) : null;
-  const asn = ['as1', 'as2'].map(id => $(id).value).filter(Boolean).map(no => { const p = findP(sd, no); return '#' + no + (p ? ' ' + p.short : ''); });
+  const asn = [...new Set(['as1', 'as2'].map(id => $(id).value))].filter(n => n && n !== pv).map(no => { const p = findP(sd, no); return '#' + no + (p ? ' ' + p.short : ''); });
   const rs = $('reasonSel').value;
   return {
-    home:{ name:v('hName') || 'Heim', logo:teamLogo('h'), score:+$('hScore').value || 0 },
-    away:{ name:v('aName') || 'Gast', logo:teamLogo('a'), score:+$('aScore').value || 0 },
+    home:{ name:v('hName') || 'Heim', logo:teamLogo('h'), score:(+$('hScore').value || 0) + (kind === 'goal' && goalPending && sd === 'home' ? 1 : 0) },
+    away:{ name:v('aName') || 'Gast', logo:teamLogo('a'), score:(+$('aScore').value || 0) + (kind === 'goal' && goalPending && sd === 'away' ? 1 : 0) },
     side:sd, no:pl ? pl.no : v('no').replace(/^#/, ''), pname:pl ? pl.short : v('pname'), as:asn,
     pen:$('pen').value, reason:rs === '__other' ? v('reason') : rs, period:$('period').value, clock:v('clock'),
     scSide:v('scSide'), scorers:v('scorers'),
@@ -709,9 +713,11 @@ $('rec').onclick = async () => {
     vid.muted = true;
     recStart = null; t0 = performance.now(); $('rec').disabled = false; $('prog').style.width = '0';
     lastBlob = new Blob(chunks, { type:mime || 'video/webm' });
-    if (kind === 'goal') { // Torschütze für die Spielstand-Leiste merken
-      const d = data(), e = (d.no ? '#' + d.no + ' ' : '') + (d.pname || '');
-      if (e.trim()) { $('scSide').value = d.side; $('scorers').value = [v('scorers'), e.trim()].filter(Boolean).join(', '); saveGame(); }
+    if (kind === 'goal' && goalPending) { // Tor zählen (+1) und Torschützen für die Spielstand-Leiste merken – nur einmal pro Tor
+      const d = data(), e = (d.no ? '#' + d.no + ' ' : '') + (d.pname || ''), f = d.side === 'home' ? 'hScore' : 'aScore';
+      $(f).value = (+$(f).value || 0) + 1; goalPending = false;
+      if (e.trim()) { $('scSide').value = d.side; $('scorers').value = [v('scorers'), e.trim()].filter(Boolean).join(', '); }
+      saveGame();
     }
     $('out').src = URL.createObjectURL(lastBlob); $('result').hidden = false;
     $('fmt').textContent = `${lastExt.toUpperCase()} · ${(lastBlob.size / 1048576).toFixed(1)} MB · 1080 × 1920 · ${dur.toFixed(1)} s${a ? ' · mit Ton' : ''}` + (lastExt === 'webm' ? ' · Instagram nimmt WebM nicht immer an, MP4 ist sicherer.' : '');
@@ -754,7 +760,7 @@ $('ngGo').onclick = () => {
   $('hScore').value = 0; $('aScore').value = 0; $('period').value = '1. DRITTEL'; $('clock').value = ''; $('scorers').value = '';
   const ws = wevSide === 'h' ? 'home' : 'away';
   $('side').value = ws; $('scSide').value = ws; $('luSide').value = ws;
-  refreshTeams(); saveGame();
+  refreshTeams(); $('as1').value = ''; $('as2').value = ''; goalPending = true; saveGame();
   $('ngPanel').hidden = true;
   $('kLineup').click();
   say(`Neues Spiel: ${v('hName')} gegen ${v('aName')}. Jetzt das Lineup prüfen.`);
