@@ -87,6 +87,7 @@ label.chk input{width:auto}
   font:italic 900 22px Georgia,serif;text-decoration:none}
 .credit{text-align:center;font-size:12.5px;color:var(--muted);padding:8px 0 0}
 .credit a{color:inherit}
+.tick{display:flex;flex-direction:column;gap:6px;border-top:1px solid var(--line);padding-top:14px}
 #bgVid{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none}
 </style>
 
@@ -216,6 +217,11 @@ label.chk input{width:auto}
           <button type="button" class="btn" id="save">Video speichern / teilen</button>
           <span id="fmt" class="small"></span>
         </div>
+      </div>
+      <div class="tick">
+        <button type="button" class="btn" id="tickBtn" style="background:var(--chip);color:var(--fg)">Ticker-Text kopieren</button>
+        <span class="small">Für den Broadcast-Kanal oder WhatsApp: Text wird kopiert, dort einfach einfügen. Am besten erst die Story posten, dann den Text.</span>
+        <textarea id="tickText" rows="4" hidden aria-label="Ticker-Text"></textarea>
       </div>
       <details id="settings">
         <summary>Einstellungen: Kader bearbeiten</summary>
@@ -445,6 +451,36 @@ function refreshTeams(){ fillPlayers(); buildLineupGrid(); }
 
 const v = id => $(id).value.trim();
 if (!/^https?:$/.test(location.protocol) || !/github\.io$|localhost/.test(location.hostname)) { const ib = $('infoBtn'); ib.href = 'https://weveishockey.github.io/rinkside-social/anleitung.html'; ib.target = '_blank'; ib.rel = 'noopener'; document.querySelectorAll('.creditlink').forEach(a => { a.href = 'https://weveishockey.github.io/rinkside-social/anleitung.html#ueber'; a.target = '_blank'; }); }
+/* Ticker-Text für Broadcast-Kanal / WhatsApp */
+const PROFILE_URL = 'instagram.com/weveishockey';
+function niceCase(x){ return (x || '').toLowerCase().replace(/(^|[\s.])(\p{L})/gu, (m, a, b) => a + b.toUpperCase()); }
+function tickerText(){
+  const d = data(), H = d.home.name, A = d.away.name, sc = `${H} ${d.home.score}:${d.away.score} ${A}`;
+  const when = [d.period === 'ENDSTAND' ? '' : niceCase(d.period), d.clock].filter(Boolean).join(', ');
+  const team = d[d.side].name, ours = isOurs(d.side);
+  const who = [(d.no ? '#' + d.no : ''), d.pname].filter(Boolean).join(' ');
+  let t;
+  if (kind === 'goal') {
+    const as = d.as.length ? ` (Assist: ${d.as.join(', ')})` : '';
+    t = ours ? `🚨 TOR ${team.toUpperCase()}! ${who}${as}` : `Gegentor: ${team}${who ? ' durch ' + who : ''}${as}`;
+    t += `\n${sc}${when ? ' · ' + when : ''}`;
+  } else if (kind === 'pen') {
+    const pen = [niceCase(d.pen), d.reason].filter(Boolean).join(', ');
+    t = `${ours ? '⛔ Strafe gegen' : '💪 Powerplay für uns! Strafe gegen'} ${team}${who ? ': ' + who : ''}${pen ? ' (' + pen + ')' : ''}\n${sc}${when ? ' · ' + when : ''}`;
+  } else if (kind === 'score') {
+    const lbl = d.period === 'ENDSTAND' ? 'ENDSTAND' : `Stand nach dem ${niceCase(d.period)}`.replace('nach dem Overtime', 'nach der Overtime').replace('nach dem Penaltyschiessen', 'nach dem Penaltyschießen');
+    t = `${d.period === 'ENDSTAND' ? '🏁 ' : '⏱️ '}${lbl}: ${sc}${d.scorers ? '\nTore: ' + d.scorers : ''}`;
+  } else if (kind === 'lineup') t = `📋 Das Lineup für heute: ${H} gegen ${A} ist da!`;
+  else t = [d.tHead, d.tSub].filter(Boolean).join(' – ');
+  return t + `\n👉 Video in unserer Story: ${PROFILE_URL}`;
+}
+$('tickBtn').onclick = async () => {
+  const t = tickerText(), ta = $('tickText'); ta.value = t; ta.hidden = false;
+  let ok = false;
+  try { await navigator.clipboard.writeText(t); ok = true; } catch (e) {}
+  if (!ok) { try { ta.focus(); ta.select(); ok = document.execCommand('copy'); } catch (e) {} }
+  say(ok ? 'Ticker-Text kopiert. Jetzt im Broadcast-Kanal einfügen (lange tippen → Einfügen). Ändern kannst du ihn auch im Feld unten.' : 'Kopieren hat nicht geklappt: Text im Feld unten markieren und kopieren.');
+};
 function data(){
   const sd = $('side').value, pv = $('player').value, pl = pv && pv !== '__other' ? findP(sd, pv) : null;
   const asn = [...new Set(['as1', 'as2'].map(id => $(id).value))].filter(n => n && n !== pv).map(no => { const p = findP(sd, no); return '#' + no + (p ? ' ' + p.short : ''); });
