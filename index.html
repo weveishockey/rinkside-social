@@ -594,11 +594,11 @@ function mute(hex, k = .55){ // Farbe entsättigen: Richtung Grau mischen (Gegen
   return '#' + c.map(v => Math.round(v + (g - v) * k).toString(16).padStart(2, '0')).join('');
 }
 let OPP = false; // Gegentor: ruhigere Darstellung
-function accentFor(d){
+function accentFor(d, muted = true){
   if (isOurs(d.side)) return YELLOW;
   const k = teamKey(d.side), def = LOGO_DEFAULT[k], logo = d[d.side].logo;
   const base = TEAM_COLOR[k] || (def && def.color && (!logo || logo.src === def.logo) ? def.color : logoColor(logo)) || '#c3c8ce';
-  return mute(brighten(base));
+  return muted ? mute(brighten(base)) : brighten(base);
 }
 function drawGoal(t){
   const d0 = data(); Y = accentFor(d0); OPP = !isOurs(d0.side);
@@ -628,7 +628,11 @@ function drawGoalInner(t){
   handle(t); if (!OPP) flash(t); fadeOut(t, dur);
 }
 
-function drawPen(t){
+function drawPen(t){ // Gegner-Strafe in dessen Vereinsfarbe (wie in Rinkside), volle Farbe
+  Y = accentFor(data(), false);
+  try { drawPenInner(t); } finally { Y = YELLOW; }
+}
+function drawPenInner(t){
   const d = data(), team = d[d.side], dur = clipDur();
   background(t, dur); matchup(d, t);
   headline('STRAFE', t, 660, 230);
