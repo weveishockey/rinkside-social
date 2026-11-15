@@ -544,7 +544,7 @@ function scoreLine(d, cy, t, start, bump){
 }
 function handle(t){ // @weveishockey wie in euren Fotos
   ctx.save(); ctx.globalAlpha = prog(t, .6, 1) * .9; setFont(40, COND, 600, false, 1);
-  ctx.fillStyle = Y; ctx.textAlign = 'right'; ctx.textBaseline = 'alphabetic'; ctx.fillText('@weveishockey', W - 70, 1660); ctx.restore();
+  ctx.fillStyle = YELLOW; ctx.textAlign = 'right'; ctx.textBaseline = 'alphabetic'; ctx.fillText('@weveishockey', W - 70, 1660); ctx.restore();
 }
 function flash(t){ const a = 1 - prog(t, 0, .3); if (a > 0) { ctx.save(); ctx.globalAlpha = a * .8; ctx.fillStyle = Y; ctx.fillRect(0, 0, W, H); ctx.restore(); } }
 function fadeOut(t, dur){ const a = prog(t, dur - .35, dur); if (a > 0) { ctx.save(); ctx.globalAlpha = a; ctx.fillStyle = '#000'; ctx.fillRect(0, 0, W, H); ctx.restore(); } }
