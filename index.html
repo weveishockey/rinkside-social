@@ -88,7 +88,6 @@ label.chk input{width:auto}
 .credit{text-align:center;font-size:12.5px;color:var(--muted);padding:8px 0 0}
 .credit a{color:inherit}
 .tick{display:flex;flex-direction:column;gap:6px;border-top:1px solid var(--line);padding-top:14px}
-.kind-text .phone canvas{touch-action:none;cursor:grab}
 #bgVid{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none}
 </style>
 
@@ -204,7 +203,7 @@ label.chk input{width:auto}
         <label class="full">Überschrift<input id="tHead" value="LETS GO BOYS"></label>
         <label class="full">Zweite Zeile (optional)<input id="tSub" value="" placeholder="z. B. Heute 19:30 · Eishalle"></label>
         <label class="chk full"><input id="tMatch" type="checkbox" checked> Logo-Box oben links zeigen</label>
-        <div class="full row" style="gap:8px"><span class="small" style="flex:1;min-width:180px">Text verschieben: in der Vorschau mit dem Finger ziehen. Mit zwei Fingern größer/kleiner ziehen und drehen (am Computer: Mausrad = Größe, Shift + Mausrad = drehen).</span>
+        <div class="full row" style="gap:8px"><span class="small" style="flex:1;min-width:180px">Text verschieben: in der Vorschau mit dem Finger ziehen. Mit zwei Fingern größer/kleiner ziehen und drehen (am Computer: Mausrad = Größe, Shift + Mausrad = drehen). Beim Verschieben bleibt die Vorschau stehen.</span>
           <button type="button" class="btn" id="tReset" style="background:var(--chip);color:var(--fg);font-size:14px;padding:9px 12px">Position zurücksetzen</button></div>
       </fieldset>
 
@@ -268,6 +267,7 @@ document.querySelectorAll('.kinds button').forEach(b => b.onclick = () => {
   kind = b.dataset.k;
   document.querySelectorAll('.kinds button').forEach(x => x.setAttribute('aria-pressed', x === b));
   $('f').className = 'panel kind-' + kind;
+  cv.style.touchAction = kind === 'text' ? 'none' : ''; cv.style.cursor = kind === 'text' ? 'grab' : '';
   t0 = performance.now();
 });
 /* Teams und eingebaute Logos aus Rinkside (LIB_DEFAULT / LOGO_DEFAULT) */
@@ -787,13 +787,14 @@ $('hPos').value = lsGet('rinkside-social-handlepos') || 'br';
 $('hPos').onchange = () => lsSet('rinkside-social-handlepos', $('hPos').value);
 {
   const pts = new Map(); let g = null;
+  const hold = () => { editHold = performance.now() + 4000; };
   const pos = e => { const r = cv.getBoundingClientRect(); return { x:(e.clientX - r.left) * W / r.width, y:(e.clientY - r.top) * H / r.height }; };
   const start = () => {
     const p = [...pts.values()];
     if (p.length === 1) g = { mode:1, p0:p[0], tx:{ ...TX } };
     else if (p.length >= 2) { const [a, b] = p; g = { mode:2, d0:Math.hypot(b.x - a.x, b.y - a.y) || 1, a0:Math.atan2(b.y - a.y, b.x - a.x), m0:{ x:(a.x + b.x)/2, y:(a.y + b.y)/2 }, tx:{ ...TX } }; }
   };
-  cv.addEventListener('pointerdown', e => { if (kind !== 'text' || recStart != null) return; cv.setPointerCapture(e.pointerId); pts.set(e.pointerId, pos(e)); start(); e.preventDefault(); });
+  cv.addEventListener('pointerdown', e => { if (kind !== 'text' || recStart != null) return; try { cv.setPointerCapture(e.pointerId); } catch (x) {} pts.set(e.pointerId, pos(e)); start(); editHold = Infinity; e.preventDefault(); });
   cv.addEventListener('pointermove', e => {
     if (!pts.has(e.pointerId) || !g) return; pts.set(e.pointerId, pos(e)); const p = [...pts.values()];
     if (g.mode === 1 && p.length === 1) { TX.x = g.tx.x + p[0].x - g.p0.x; TX.y = g.tx.y + p[0].y - g.p0.y; }
@@ -802,17 +803,21 @@ $('hPos').onchange = () => lsSet('rinkside-social-handlepos', $('hPos').value);
       TX.r = g.tx.r + Math.atan2(b.y - a.y, b.x - a.x) - g.a0; TX.x = g.tx.x + m.x - g.m0.x; TX.y = g.tx.y + m.y - g.m0.y; }
     e.preventDefault();
   });
-  const end = e => { if (!pts.delete(e.pointerId)) return; if (Math.abs(TX.r) < .05) TX.r = 0; saveTX(); g = null; if (pts.size) start(); };
+  const end = e => { if (!pts.delete(e.pointerId)) return; if (Math.abs(TX.r) < .05) TX.r = 0; saveTX(); g = null; if (pts.size) start(); else hold(); };
+  // Android/iPhone: beim Ziehen am Text nicht die Seite scrollen
+  ['touchstart', 'touchmove'].forEach(ev => cv.addEventListener(ev, e => { if (kind === 'text' && recStart == null) e.preventDefault(); }, { passive:false }));
   cv.addEventListener('pointerup', end); cv.addEventListener('pointercancel', end);
   cv.addEventListener('wheel', e => { if (kind !== 'text') return; e.preventDefault();
-    if (e.shiftKey) TX.r += (e.deltaY || e.deltaX) > 0 ? .05 : -.05; else TX.s = Math.min(4, Math.max(.25, TX.s * (e.deltaY > 0 ? .93 : 1.07))); saveTX(); }, { passive:false });
+    if (e.shiftKey) TX.r += (e.deltaY || e.deltaX) > 0 ? .05 : -.05; else TX.s = Math.min(4, Math.max(.25, TX.s * (e.deltaY > 0 ? .93 : 1.07))); saveTX(); hold(); }, { passive:false });
 }
 const DRAW = { goal:drawGoal, pen:drawPen, score:drawScore, lineup:drawLineup, text:drawText };
 
 /* ---------- Vorschau-Schleife ---------- */
-let t0 = performance.now(), recStart = null, lastT = 0;
+let t0 = performance.now(), recStart = null, lastT = 0, editHold = 0; // editHold: Vorschau beim Verschieben anhalten
 function frame(now){
   const dur = clipDur();
+  const editing = recStart == null && kind === 'text' && now < editHold;
+  if (editing) t0 = now - 2000; // Text voll sichtbar stehen lassen, danach weiter in Schleife
   const t = recStart != null ? Math.min((now - recStart) / 1000, dur) : ((now - t0) / 1000) % (dur + .6);
   if (recStart == null && vidOn && t < lastT) { try { vid.currentTime = +$('vStart').value || 0; vid.play().catch(() => {}); } catch (e) {} }
   lastT = t;
