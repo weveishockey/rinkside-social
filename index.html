@@ -575,21 +575,31 @@ function logoColor(im){
       const top = bins.reduce((a, b) => b.w > a.w ? b : a), best = Object.values(top.q).reduce((a, b) => b.n > a.n ? b : a);
       let rgb = [best.r, best.g, best.b].map(v => v / best.n);
       // auf dunklem Hintergrund lesbar machen: zu dunkle Farben aufhellen
-      // Helligkeit anheben, Sättigung behalten (dunkelrot -> kräftiges Rot statt rosa)
-      const lum = c => (.2126 * c[0] + .7152 * c[1] + .0722 * c[2]) / 255;
-      for (let k = 0; k < 12 && lum(rgb) < .32; k++) { const mx = Math.max(...rgb); rgb = mx < 250 ? rgb.map(v => Math.min(255, v * 1.12 + 4)) : rgb.map(v => v + (255 - v) * .12); }
       res = '#' + rgb.map(v => Math.round(v).toString(16).padStart(2, '0')).join('');
     }
   } catch (e) {}
   colorCache.set(im, res); return res;
 }
 const isOurs = side => /^[tr]0$/.test(teamKey(side)) || /\bWEV\b|Eislauf/i.test($(sideX(side) + 'Name').value);
+function brighten(hex){ // auf dunklem Hintergrund lesbar: Helligkeit anheben, Sättigung behalten
+  let rgb = [1, 3, 5].map(i => parseInt(hex.slice(i, i + 2), 16));
+  const lum = c => (.2126 * c[0] + .7152 * c[1] + .0722 * c[2]) / 255;
+  for (let k = 0; k < 12 && lum(rgb) < .32; k++) { const mx = Math.max(...rgb); rgb = mx < 250 ? rgb.map(v => Math.min(255, v * 1.12 + 4)) : rgb.map(v => v + (255 - v) * .12); }
+  return '#' + rgb.map(v => Math.round(v).toString(16).padStart(2, '0')).join('');
+}
+/* Feste Vereinsfarben für Gegentore (vor der Logo-Farbe aus Rinkside). Gmunden: Farbe vom Hai (Alfred, 15.11.) */
+const TEAM_COLOR = { t3:'#8fa3b0' };
 function mute(hex, k = .55){ // Farbe entsättigen: Richtung Grau mischen (Gegentor nur informieren, nicht feiern)
   const c = [1, 3, 5].map(i => parseInt(hex.slice(i, i + 2), 16)), g = .3 * c[0] + .59 * c[1] + .11 * c[2];
   return '#' + c.map(v => Math.round(v + (g - v) * k).toString(16).padStart(2, '0')).join('');
 }
 let OPP = false; // Gegentor: ruhigere Darstellung
-function accentFor(d){ return isOurs(d.side) ? YELLOW : mute(logoColor(d[d.side].logo) || '#c3c8ce'); }
+function accentFor(d){
+  if (isOurs(d.side)) return YELLOW;
+  const k = teamKey(d.side), def = LOGO_DEFAULT[k], logo = d[d.side].logo;
+  const base = TEAM_COLOR[k] || (def && def.color && (!logo || logo.src === def.logo) ? def.color : logoColor(logo)) || '#c3c8ce';
+  return mute(brighten(base));
+}
 function drawGoal(t){
   const d0 = data(); Y = accentFor(d0); OPP = !isOurs(d0.side);
   try { drawGoalInner(t); } finally { Y = YELLOW; OPP = false; }
