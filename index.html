@@ -88,6 +88,7 @@ label.chk input{width:auto}
 .credit{text-align:center;font-size:12.5px;color:var(--muted);padding:8px 0 0}
 .credit a{color:inherit}
 .tick{display:flex;flex-direction:column;gap:6px;border-top:1px solid var(--line);padding-top:14px}
+.kind-text .phone canvas{touch-action:none;cursor:grab}
 #bgVid{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none}
 </style>
 
@@ -155,6 +156,7 @@ label.chk input{width:auto}
         <legend>Hintergrund und Ton</legend>
         <label class="full">Foto oder Video vom Handy (optional)<input id="bgFile" type="file" accept="image/*,video/*"></label>
         <label class="chk full"><input id="bw" type="checkbox" checked> Schwarz-weiß wie in euren Stories</label>
+        <label class="full">@weveishockey-Schriftzug<select id="hPos"><option value="br">unten rechts</option><option value="bl">unten links</option><option value="tr">oben rechts</option><option value="off">aus</option></select></label>
         <label class="vidOnly" hidden>Video ab Sekunde<input id="vStart" type="number" min="0" step="0.5" value="0" inputmode="decimal"></label>
         <label class="vidOnly" hidden>Länge des Clips<select id="lenMode"><option value="tpl">wie die Vorlage</option><option value="video">ganzes Video (bis 15 s)</option></select></label>
         <label class="full">Ton<select id="sound">
@@ -202,6 +204,8 @@ label.chk input{width:auto}
         <label class="full">Überschrift<input id="tHead" value="LETS GO BOYS"></label>
         <label class="full">Zweite Zeile (optional)<input id="tSub" value="" placeholder="z. B. Heute 19:30 · Eishalle"></label>
         <label class="chk full"><input id="tMatch" type="checkbox" checked> Logo-Box oben links zeigen</label>
+        <div class="full row" style="gap:8px"><span class="small" style="flex:1;min-width:180px">Text verschieben: in der Vorschau mit dem Finger ziehen. Mit zwei Fingern größer/kleiner ziehen und drehen (am Computer: Mausrad = Größe, Shift + Mausrad = drehen).</span>
+          <button type="button" class="btn" id="tReset" style="background:var(--chip);color:var(--fg);font-size:14px;padding:9px 12px">Position zurücksetzen</button></div>
       </fieldset>
 
       <video id="bgVid" playsinline muted loop preload="auto"></video>
@@ -578,9 +582,11 @@ function scoreLine(d, cy, t, start, bump){
   ctx.fillText(':', W/2, cy - 8);
   ctx.restore();
 }
-function handle(t){ // @weveishockey wie in euren Fotos
+const HPOS = { br:[W - 70, 1660, 'right'], bl:[70, 1660, 'left'], tr:[W - 70, 250, 'right'] };
+function handle(t){ // @weveishockey wie in euren Fotos, Platz wählbar
+  const hp = HPOS[$('hPos').value]; if (!hp) return;
   ctx.save(); ctx.globalAlpha = prog(t, .6, 1) * .9; setFont(40, COND, 600, false, 1);
-  ctx.fillStyle = YELLOW; ctx.textAlign = 'right'; ctx.textBaseline = 'alphabetic'; ctx.fillText('@weveishockey', W - 70, 1660); ctx.restore();
+  ctx.fillStyle = YELLOW; ctx.textAlign = hp[2]; ctx.textBaseline = 'alphabetic'; ctx.fillText('@weveishockey', hp[0], hp[1]); ctx.restore();
 }
 function flash(t){ const a = 1 - prog(t, 0, .3); if (a > 0) { ctx.save(); ctx.globalAlpha = a * .8; ctx.fillStyle = Y; ctx.fillRect(0, 0, W, H); ctx.restore(); } }
 function fadeOut(t, dur){ const a = prog(t, dur - .35, dur); if (a > 0) { ctx.save(); ctx.globalAlpha = a; ctx.fillStyle = '#000'; ctx.fillRect(0, 0, W, H); ctx.restore(); } }
@@ -753,6 +759,7 @@ function drawLineup(t){
 function drawText(t){
   const d = data(), dur = clipDur();
   background(t, dur); if (d.tMatch) matchup(d, t);
+  ctx.save(); const cy0 = 880; ctx.translate(W/2 + TX.x, cy0 + TX.y); ctx.rotate(TX.r); ctx.scale(TX.s, TX.s); ctx.translate(-W/2, -cy0);
   const head = (d.tHead || 'LETS GO').toUpperCase(), words = head.split(/\s+/);
   setFont(230, HEAD, 900, true, -4); let two = false;
   if (words.length > 1 && ctx.measureText(head).width > 930) { // lange Überschrift auf zwei Zeilen
@@ -767,7 +774,38 @@ function drawText(t){
     const s = d.tSub.toUpperCase(); fit(s, 900, 64, COND, 700, false, 6); ctx.fillText(s, W/2, two ? 1070 : 970);
     ctx.restore();
   }
+  ctx.restore();
   handle(t); fadeOut(t, dur);
+}
+/* Freier Text: verschieben, skalieren, drehen (wie in Instagram) */
+const TX_DEF = { x:0, y:0, s:1, r:0 };
+let TX = { ...TX_DEF };
+try { const j = JSON.parse(lsGet('rinkside-social-textpos') || 'null'); if (j && isFinite(j.x) && isFinite(j.s)) TX = { ...TX_DEF, ...j }; } catch (e) {}
+const saveTX = () => lsSet('rinkside-social-textpos', JSON.stringify(TX));
+$('tReset').onclick = () => { TX = { ...TX_DEF }; saveTX(); say('Text wieder in der Mitte.'); };
+$('hPos').value = lsGet('rinkside-social-handlepos') || 'br';
+$('hPos').onchange = () => lsSet('rinkside-social-handlepos', $('hPos').value);
+{
+  const pts = new Map(); let g = null;
+  const pos = e => { const r = cv.getBoundingClientRect(); return { x:(e.clientX - r.left) * W / r.width, y:(e.clientY - r.top) * H / r.height }; };
+  const start = () => {
+    const p = [...pts.values()];
+    if (p.length === 1) g = { mode:1, p0:p[0], tx:{ ...TX } };
+    else if (p.length >= 2) { const [a, b] = p; g = { mode:2, d0:Math.hypot(b.x - a.x, b.y - a.y) || 1, a0:Math.atan2(b.y - a.y, b.x - a.x), m0:{ x:(a.x + b.x)/2, y:(a.y + b.y)/2 }, tx:{ ...TX } }; }
+  };
+  cv.addEventListener('pointerdown', e => { if (kind !== 'text' || recStart != null) return; cv.setPointerCapture(e.pointerId); pts.set(e.pointerId, pos(e)); start(); e.preventDefault(); });
+  cv.addEventListener('pointermove', e => {
+    if (!pts.has(e.pointerId) || !g) return; pts.set(e.pointerId, pos(e)); const p = [...pts.values()];
+    if (g.mode === 1 && p.length === 1) { TX.x = g.tx.x + p[0].x - g.p0.x; TX.y = g.tx.y + p[0].y - g.p0.y; }
+    else if (g.mode === 2 && p.length >= 2) { const [a, b] = p, m = { x:(a.x + b.x)/2, y:(a.y + b.y)/2 };
+      TX.s = Math.min(4, Math.max(.25, g.tx.s * Math.hypot(b.x - a.x, b.y - a.y) / g.d0));
+      TX.r = g.tx.r + Math.atan2(b.y - a.y, b.x - a.x) - g.a0; TX.x = g.tx.x + m.x - g.m0.x; TX.y = g.tx.y + m.y - g.m0.y; }
+    e.preventDefault();
+  });
+  const end = e => { if (!pts.delete(e.pointerId)) return; if (Math.abs(TX.r) < .05) TX.r = 0; saveTX(); g = null; if (pts.size) start(); };
+  cv.addEventListener('pointerup', end); cv.addEventListener('pointercancel', end);
+  cv.addEventListener('wheel', e => { if (kind !== 'text') return; e.preventDefault();
+    if (e.shiftKey) TX.r += (e.deltaY || e.deltaX) > 0 ? .05 : -.05; else TX.s = Math.min(4, Math.max(.25, TX.s * (e.deltaY > 0 ? .93 : 1.07))); saveTX(); }, { passive:false });
 }
 const DRAW = { goal:drawGoal, pen:drawPen, score:drawScore, lineup:drawLineup, text:drawText };
 
