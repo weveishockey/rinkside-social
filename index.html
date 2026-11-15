@@ -203,7 +203,7 @@ label.chk input{width:auto}
         <label class="full">Überschrift<input id="tHead" value="LETS GO BOYS"></label>
         <label class="full">Zweite Zeile (optional)<input id="tSub" value="" placeholder="z. B. Heute 19:30 · Eishalle"></label>
         <label class="chk full"><input id="tMatch" type="checkbox" checked> Logo-Box oben links zeigen</label>
-        <div class="full row" style="gap:8px"><span class="small" style="flex:1;min-width:180px">Text verschieben: in der Vorschau mit dem Finger ziehen. Mit zwei Fingern größer/kleiner ziehen und drehen (am Computer: Mausrad = Größe, Shift + Mausrad = drehen). Beim Verschieben bleibt die Vorschau stehen.</span>
+        <div class="full row" style="gap:8px"><span class="small" style="flex:1;min-width:180px">Text verschieben: in der Vorschau den Text selbst antippen und ziehen (daneben scrollt die Seite normal). Mit zwei Fingern größer/kleiner ziehen und drehen (am Computer: Mausrad = Größe, Shift + Mausrad = drehen). Beim Verschieben bleibt die Vorschau stehen.</span>
           <button type="button" class="btn" id="tReset" style="background:var(--chip);color:var(--fg);font-size:14px;padding:9px 12px">Position zurücksetzen</button></div>
       </fieldset>
 
@@ -267,7 +267,7 @@ document.querySelectorAll('.kinds button').forEach(b => b.onclick = () => {
   kind = b.dataset.k;
   document.querySelectorAll('.kinds button').forEach(x => x.setAttribute('aria-pressed', x === b));
   $('f').className = 'panel kind-' + kind;
-  cv.style.touchAction = kind === 'text' ? 'none' : ''; cv.style.cursor = kind === 'text' ? 'grab' : '';
+  cv.style.cursor = kind === 'text' ? 'grab' : '';
   t0 = performance.now();
 });
 /* Teams und eingebaute Logos aus Rinkside (LIB_DEFAULT / LOGO_DEFAULT) */
@@ -788,13 +788,18 @@ $('hPos').onchange = () => lsSet('rinkside-social-handlepos', $('hPos').value);
 {
   const pts = new Map(); let g = null;
   const hold = () => { editHold = performance.now() + 4000; };
+  // Nur wer den Text selbst berührt, verschiebt ihn. Daneben scrollt die Seite ganz normal.
+  const onText = q => { const dx = q.x - (W/2 + TX.x), dy = q.y - (880 + TX.y), c = Math.cos(-TX.r), sn = Math.sin(-TX.r);
+    const lx = (dx * c - dy * sn) / TX.s, ly = (dx * sn + dy * c) / TX.s; return Math.abs(lx) < 540 && ly > -400 && ly < 260; };
+  const posT = t => { const r = cv.getBoundingClientRect(); return { x:(t.clientX - r.left) * W / r.width, y:(t.clientY - r.top) * H / r.height }; };
+  let touchGrab = false;
   const pos = e => { const r = cv.getBoundingClientRect(); return { x:(e.clientX - r.left) * W / r.width, y:(e.clientY - r.top) * H / r.height }; };
   const start = () => {
     const p = [...pts.values()];
     if (p.length === 1) g = { mode:1, p0:p[0], tx:{ ...TX } };
     else if (p.length >= 2) { const [a, b] = p; g = { mode:2, d0:Math.hypot(b.x - a.x, b.y - a.y) || 1, a0:Math.atan2(b.y - a.y, b.x - a.x), m0:{ x:(a.x + b.x)/2, y:(a.y + b.y)/2 }, tx:{ ...TX } }; }
   };
-  cv.addEventListener('pointerdown', e => { if (kind !== 'text' || recStart != null) return; try { cv.setPointerCapture(e.pointerId); } catch (x) {} pts.set(e.pointerId, pos(e)); start(); editHold = Infinity; e.preventDefault(); });
+  cv.addEventListener('pointerdown', e => { if (kind !== 'text' || recStart != null) return; if (!pts.size && !onText(pos(e))) return; try { cv.setPointerCapture(e.pointerId); } catch (x) {} pts.set(e.pointerId, pos(e)); start(); editHold = Infinity; e.preventDefault(); });
   cv.addEventListener('pointermove', e => {
     if (!pts.has(e.pointerId) || !g) return; pts.set(e.pointerId, pos(e)); const p = [...pts.values()];
     if (g.mode === 1 && p.length === 1) { TX.x = g.tx.x + p[0].x - g.p0.x; TX.y = g.tx.y + p[0].y - g.p0.y; }
@@ -805,7 +810,11 @@ $('hPos').onchange = () => lsSet('rinkside-social-handlepos', $('hPos').value);
   });
   const end = e => { if (!pts.delete(e.pointerId)) return; if (Math.abs(TX.r) < .05) TX.r = 0; saveTX(); g = null; if (pts.size) start(); else hold(); };
   // Android/iPhone: beim Ziehen am Text nicht die Seite scrollen
-  ['touchstart', 'touchmove'].forEach(ev => cv.addEventListener(ev, e => { if (kind === 'text' && recStart == null) e.preventDefault(); }, { passive:false }));
+  cv.addEventListener('touchstart', e => { if (kind !== 'text' || recStart != null) return;
+    if (!touchGrab) touchGrab = [...e.touches].some(t => onText(posT(t)));
+    if (touchGrab) e.preventDefault(); }, { passive:false });
+  cv.addEventListener('touchmove', e => { if (touchGrab) e.preventDefault(); }, { passive:false });
+  ['touchend', 'touchcancel'].forEach(ev => cv.addEventListener(ev, e => { if (!e.touches.length) touchGrab = false; }));
   cv.addEventListener('pointerup', end); cv.addEventListener('pointercancel', end);
   cv.addEventListener('wheel', e => { if (kind !== 'text') return; e.preventDefault();
     if (e.shiftKey) TX.r += (e.deltaY || e.deltaX) > 0 ? .05 : -.05; else TX.s = Math.min(4, Math.max(.25, TX.s * (e.deltaY > 0 ? .93 : 1.07))); saveTX(); hold(); }, { passive:false });
