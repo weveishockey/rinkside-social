@@ -483,7 +483,7 @@ function drawLogo(team, cx, cy, size){
   ctx.restore();
 }
 function cross(cx, cy, s, p = 1){ // gelbes X, Striche werden nacheinander gezogen
-  ctx.save(); ctx.strokeStyle = Y; ctx.lineWidth = s * .12;
+  ctx.save(); ctx.strokeStyle = YELLOW; ctx.lineWidth = s * .12; // X immer WEV-Gelb, wie in den Stories
   const p1 = clamp(p * 2), p2 = clamp(p * 2 - 1);
   if (p1 > 0) { ctx.beginPath(); ctx.moveTo(cx - s/2, cy - s/2); ctx.lineTo(cx - s/2 + s * p1, cy - s/2 + s * p1); ctx.stroke(); }
   if (p2 > 0) { ctx.beginPath(); ctx.moveTo(cx + s/2, cy - s/2); ctx.lineTo(cx + s/2 - s * p2, cy - s/2 + s * p2); ctx.stroke(); }
