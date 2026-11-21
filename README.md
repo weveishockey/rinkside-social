@@ -6,4 +6,4 @@ Tor, Strafe, Spielstand, Lineup und freier Text als kurzes Hochformat-Video (108
 
 Am Handy öffnen und über „Zum Startbildschirm hinzufügen“ als App ablegen.
 
-© 2026 Alfred „Big Al“ Hengstberger für den Wiener Eislauf-Verein. Programmiert mit Unterstützung von Claude.
+© 2026 Alfred „Big Al“ Hengstberger für den Wiener Eislauf-Verein.

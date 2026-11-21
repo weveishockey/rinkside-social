@@ -957,7 +957,7 @@ $('save').onclick = async () => {
   const d = data(), nm = { goal:'Tor', pen:'Strafe', score:'Spielstand', lineup:'Lineup', text:'Story' }[kind];
   const who = kind === 'goal' || kind === 'pen' ? `${d.no}-${d.pname.split(' ').pop() || ''}` : `${d.home.name}-${d.away.name}`;
   const filename = `Rinkside-${nm}-${who}.${lastExt}`.replace(/[^\wÄÖÜäöüß.\-]+/g, '_');
-  if (!downloads) { // außerhalb von Claude: Teilen-Menü des Handys (direkt zu Instagram), sonst normaler Download
+  if (!downloads) { // normaler Browser: Teilen-Menü des Handys (direkt zu Instagram), sonst normaler Download
     const file = new File([lastBlob], filename, { type:lastBlob.type || (lastExt === 'mp4' ? 'video/mp4' : 'video/webm') });
     if (navigator.canShare && navigator.canShare({ files:[file] })) {
       try { await navigator.share({ files:[file] }); $('status').textContent = 'Geteilt: ' + filename; return; }
